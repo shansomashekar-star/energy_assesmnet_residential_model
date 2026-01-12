@@ -1,0 +1,47 @@
+
+"""
+Audit Engine Design
+-------------------
+Goal: Generate professional, context-aware energy usage recommendations.
+
+Inputs:
+1.  Home Profile (Features)
+2.  Predicted Energy Breakdown (Heating, Cooling, Water, Baseload)
+3.  Benchmark Data (Regional Averages)
+
+Logic Flow:
+1.  **Analyze**: Compare User vs Benchmark for each end-use category.
+2.  **Diagnose**: If usage is high, look at related physical features (e.g., High Heating + Drafty Windows).
+3.  **Prescribe**: Generate specific actions with financial ROI calculations.
+
+Rules Database:
+-   **Insulation**: Trigger if Heating/Cooling > 20% over benchmark OR `ADQINSUL` is 'Not well'.
+-   **HVAC**: Trigger if Equipment Age > 15 years OR Usage is inefficient.
+-   **Water Heating**: Trigger if Fuel is Electric and Usage > Benchmark (Rec: Heat Pump Water Heater).
+-   **Baseload**: Trigger if `NUMFRIG` > 1 or `POOL` exists.
+"""
+
+from typing import List, Dict
+
+class AuditEngine:
+    def __init__(self, benchmarks: Dict):
+        self.benchmarks = benchmarks
+
+    def analyze(self, profile: Dict, prediction: Dict) -> List[Dict]:
+        recommendations = []
+        
+        # 1. Heating Analysis
+        recs_heat = self._analyze_heating(profile, prediction)
+        recommendations.extend(recs_heat)
+
+        # 2. Cooling Analysis
+        recs_cool = self._analyze_cooling(profile, prediction)
+        recommendations.extend(recs_cool)
+        
+        # 3. Water Heating
+        recs_water = self._analyze_water(profile, prediction)
+        recommendations.extend(recs_water)
+
+        return sorted(recommendations, key=lambda x: x['roi_years'])
+
+    # ... specific analysis methods implemented in code ...
