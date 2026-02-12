@@ -3,3 +3,7 @@ __pycache__/
 .DS_Store
 .env
 data/
+
+# local
+.venv/
+pip_install.log
