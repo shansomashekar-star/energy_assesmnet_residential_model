@@ -20,110 +20,47 @@ os.makedirs(MODEL_DIR, exist_ok=True)
 # Define Base Features (Global Scope) - Expanded to 100+ features
 # Building Envelope Features (20+)
 NUMERIC_FEATURES = [
-    'TOTSQFT_EN',   # Total conditioned sqft
+    'TOTSQFT_EN',   # Total conditioned square footage
     'HDD65',        # Heating Degree Days
     'CDD65',        # Cooling Degree Days
-    'NHSLDMEM',     # Household Members
+    'NHSLDMEM',     # Household members
     'STORIES',      # Number of stories
-    'DOOR1SUM',     # Number of doors
-    'TREESHAD',     # Tree shading
-    # HVAC System Features (30+)
     'ACEQUIPAGE',   # AC equipment age
     'TEMPHOME',     # Temperature when home
     'TEMPGONE',     # Temperature when gone
     'TEMPNITE',     # Temperature at night
-    # Appliance Features (25+)
-    'NUMFRIG',      # Number of fridges
+    'NUMFRIG',      # Number of refrigerators
     'NUMFREEZ',     # Number of freezers
-    'AGERFRI1',     # Age of main fridge
-    'AGERFRI2',     # Age of second fridge
-    'AGEFRZ1',      # Age of freezer
-    'AMTMICRO',     # Microwave usage amount
-    'WASHLOAD',     # Washer load frequency
-    'WASHTEMP',     # Washer temperature setting
-    'TVCOLOR',      # Number of TVs
-    'TVONWD1',      # TV on weekday hours
-    'TVONWE1',      # TV on weekend hours
-    'NUMLAPTOP',    # Laptops
-    'NUMTABLET',    # Tablets
-    'NUMSMPHONE',   # Smartphones
-    # Water Heating Features (15+)
+    'AGERFRI1',     # Age of main refrigerator
     'WHEATSIZ',     # Water heater size
     'WHEATAGE',     # Water heater age
     'MORETHAN1H2O', # Multiple water heaters
-    # Lighting Features (15+)
-    'LGTINLED',     # LED bulb percentage
-    'LGTINCFL',     # CFL bulb percentage
-    'LGTINCAN',     # Incandescent percentage
-    'LGTIN1TO4',    # Lights on 1-4 hours/day
-    'LGTIN4TO8',    # Lights on 4-8 hours/day
+    'LGTINLED',     # LED lighting share
+    'LGTINCFL',     # CFL lighting share
+    'LGTINCAN',     # Incandescent lighting share
+    'LGTIN1TO4',    # Lights on 1–4 hours/day
+    'LGTIN4TO8',    # Lights on 4–8 hours/day
     'LGTINMORE8',   # Lights on 8+ hours/day
     'LGTOUTANY',    # Outdoor lighting present
     'LGTOUTNITE',   # Outdoor lighting at night
-    # Behavioral & Occupancy Features (10+)
-    'ATHOME',       # Time at home
-    'MONEYPY'       # Income level
+    'ATHOME'        # Time spent at home
 ]
 
 CATEGORICAL_FEATURES = [
-    # Geographic & Structure
-    'DIVISION',         # Region
-    'TYPEHUQ',          # Housing Unit Type
-    'UATYP10',          # Urban/Rural
-    'YEARMADERANGE',    # Year Built
-    # Building Envelope
-    'WALLTYPE',         # Wall Material
-    'ROOFTYPE',         # Roof Type
-    'WINDOWS',          # Windows Frequency
-    'TYPEGLASS',        # Glass type (single, double, triple pane)
-    'WINFRAME',         # Window frame material
-    'ADQINSUL',         # Insulation Quality
-    'DRAFTY',           # Draftiness
-    'ATTIC',            # Attic presence
-    'ATTICFIN',         # Attic finish
-    'CELLAR',           # Cellar/basement
-    'CRAWL',            # Crawlspace
-    'CONCRETE',         # Concrete foundation
-    # HVAC System
-    'EQUIPM',           # Main Heating Equipment
-    'FUELHEAT',         # Main Heating Fuel
-    'ACEQUIPM_PUB',     # Cooling Type
-    'COOLTYPE',         # Cooling system type
-    'THERMAIN',         # Thermostat type
-    'PROTHERM',         # Programmable thermostat
-    'EQUIPAUX',         # Auxiliary heating equipment
-    'DUCTS',            # Ductwork presence
-    'DUCTINSUL',        # Duct insulation
-    'HEATHOME',         # Heating usage patterns
-    # Appliances
-    'RANGE',            # Cooking equipment type
-    'RANGEFUEL',        # Range fuel type
-    'RANGEINDT',        # Range indicator
-    'OVEN',             # Oven type
-    'OVENFUEL',         # Oven fuel type
-    'MICRO',            # Microwave presence
-    'DISHWASH',         # Dishwasher presence
-    'DWASHUSE',         # Dishwasher usage frequency
-    'AGEDW',            # Age of Dishwasher
-    'CWASHER',          # Clothes washer presence
-    'AGECWASH',         # Age of Washer
-    'DRYER',            # Clothes dryer presence
-    'DRYRFUEL',         # Dryer fuel type
-    'AGECDRYER',        # Age of dryer
-    # Water Heating
-    'FUELH2O',          # Water Heater Fuel
-    'WHEATBKT',         # Tankless indicator
-    'ELWATER',          # Electric water heating
-    'FOWATER',          # Fuel oil water heating
-    'LPWATER',          # LP gas water heating
-    'SOLWATER',         # Solar water heating
-    # Behavioral & Occupancy
-    'SMARTMETER',       # Smart Meter
-    'EDUCATION',        # Education level
-    'EMPLOYHH',         # Employment status
-    'SDESCENT',         # Householder Descent
-    'PAYHELP',          # Energy Insecurity
-    'NOHEATBROKE'       # Energy Insecurity
+    'DIVISION',       # Region
+    'TYPEHUQ',        # Housing unit type
+    'YEARMADERANGE',  # Year built range
+    'WINDOWS',        # Window quantity / category
+    'TYPEGLASS',      # Glass type
+    'ADQINSUL',       # Insulation quality
+    'DRAFTY',         # Draftiness level
+    'EQUIPM',         # Main heating equipment
+    'FUELHEAT',       # Main heating fuel
+    'ACEQUIPM_PUB',   # Cooling type
+    'FUELH2O',        # Water heater fuel
+    'DISHWASH',       # Dishwasher presence
+    'CWASHER',        # Clothes washer presence
+    'DRYER'           # Clothes dryer presence
 ]
 
 TARGETS = {
@@ -137,64 +74,45 @@ TARGETS = {
 def load_data(filepath):
     print(f"Loading {filepath}...")
     df = pd.read_csv(filepath, low_memory=False)
-    
-    # Feature Engineering: Interactions and Advanced Features
-    print("Generating Interaction Features...")
-    
-    # Basic Interactions
+
+    # Feature Engineering: reduced but stronger engineered set
+    print("Generating Reduced Interaction Features...")
+
     # 1. Heating Intensity: HDD * SqFt
     df['HDD_x_SQFT'] = df['HDD65'] * df['TOTSQFT_EN']
-    
+
     # 2. Cooling Intensity: CDD * SqFt
     df['CDD_x_SQFT'] = df['CDD65'] * df['TOTSQFT_EN']
-    
+
     # 3. Usage Intensity: SqFt Per Person
     members = df['NHSLDMEM'].replace(0, 1)
     df['SQFT_PER_CAPITA'] = df['TOTSQFT_EN'] / members
-    
-    # Advanced Interaction Features
-    # 4. Heating load with insulation factor (approximate R-value proxy)
-    # ADQINSUL: 1=Well insulated, 2=Adequate, 3=Poor
+
+    # 4. Heating load adjusted by insulation
     insulation_factor = df.get('ADQINSUL', pd.Series([2] * len(df)))
     insulation_factor = insulation_factor.replace({1: 1.0, 2: 0.7, 3: 0.4}).fillna(0.7)
     df['HDD_x_SQFT_x_INSUL'] = df['HDD65'] * df['TOTSQFT_EN'] * insulation_factor
-    
-    # 5. Cooling load with window factor
-    # WINDOWS: More windows = higher cooling load
+
+    # 5. Cooling load adjusted by windows
     window_factor = df.get('WINDOWS', pd.Series([3] * len(df)))
-    window_factor = pd.to_numeric(window_factor, errors='coerce').fillna(3) / 5.0  # Normalize
+    window_factor = pd.to_numeric(window_factor, errors='coerce').fillna(3) / 5.0
     df['CDD_x_SQFT_x_WINDOWS'] = df['CDD65'] * df['TOTSQFT_EN'] * window_factor
-    
-    # 6. Equipment age efficiency degradation
-    # Older equipment is less efficient
+
+    # 6. Equipment age degradation proxy
     age_frig = pd.to_numeric(df.get('AGERFRI1', pd.Series([3] * len(df))), errors='coerce').fillna(3)
     age_hvac = pd.to_numeric(df.get('ACEQUIPAGE', pd.Series([3] * len(df))), errors='coerce').fillna(3)
-    # Age categories: 1=new, 2=1-5yr, 3=6-10yr, 4=11-15yr, 5=16-20yr, 6=20+yr
-    efficiency_degradation = (age_frig + age_hvac) / 12.0  # Normalize
-    df['AGE_x_EFFICIENCY'] = efficiency_degradation
-    
-    # 7. Occupancy impact on baseload
-    # More people = higher baseload, but per-capita may decrease
-    df['OCCUPANCY_x_BASELOAD'] = df['NHSLDMEM'] * df['TOTSQFT_EN'] / 1000.0
-    
-    # 8. Window area estimate (if available, otherwise use proxy)
-    # More windows = more heat loss/gain
-    window_count_proxy = pd.to_numeric(df.get('WINDOWS', pd.Series([3] * len(df))), errors='coerce').fillna(3)
-    df['WINDOW_AREA_EST'] = df['TOTSQFT_EN'] * (window_count_proxy / 5.0) * 0.15  # ~15% of wall area
-    
-    # 9. Heating system efficiency proxy
-    # EQUIPM: 1=Heat pump, 2=Steam, 3=Furnace, 4=Boiler, etc.
+    df['AGE_x_EFFICIENCY'] = (age_frig + age_hvac) / 12.0
+
+    # 7. Heating system efficiency proxy
     equip_type = pd.to_numeric(df.get('EQUIPM', pd.Series([3] * len(df))), errors='coerce').fillna(3)
-    # Heat pumps are more efficient (lower value = better)
     heating_efficiency = equip_type.map({1: 0.3, 2: 0.6, 3: 0.7, 4: 0.65, 5: 0.8}).fillna(0.7)
     df['HEATING_EFF_PROXY'] = heating_efficiency
-    
-    # 10. Cooling system efficiency proxy
-    # ACEQUIPM_PUB: AC type affects efficiency
+
+    # 8. Cooling system efficiency proxy
     cool_type = pd.to_numeric(df.get('ACEQUIPM_PUB', pd.Series([1] * len(df))), errors='coerce').fillna(1)
     cooling_efficiency = cool_type.map({1: 0.6, 2: 0.5, 3: 0.7, 4: 0.8}).fillna(0.6)
     df['COOLING_EFF_PROXY'] = cooling_efficiency
-    
+
     return df
 
 def train_and_optimize():
@@ -202,10 +120,14 @@ def train_and_optimize():
     
     # Extended Numeric Features list (including engineered ones)
     EXT_NUMERIC_FEATURES = NUMERIC_FEATURES + [
-        'HDD_x_SQFT', 'CDD_x_SQFT', 'SQFT_PER_CAPITA',
-        'HDD_x_SQFT_x_INSUL', 'CDD_x_SQFT_x_WINDOWS',
-        'AGE_x_EFFICIENCY', 'OCCUPANCY_x_BASELOAD',
-        'WINDOW_AREA_EST', 'HEATING_EFF_PROXY', 'COOLING_EFF_PROXY'
+        'HDD_x_SQFT',           # Heating intensity
+        'CDD_x_SQFT',           # Cooling intensity
+        'SQFT_PER_CAPITA',      # Sqft per household member
+        'HDD_x_SQFT_x_INSUL',   # Heating intensity adjusted for insulation
+        'CDD_x_SQFT_x_WINDOWS', # Cooling intensity adjusted for window factor
+        'AGE_x_EFFICIENCY',     # Equipment age efficiency degradation proxy
+        'HEATING_EFF_PROXY',    # Heating system efficiency proxy
+        'COOLING_EFF_PROXY'     # Cooling system efficiency proxy
     ]
     
     # Define ColumnTransformer

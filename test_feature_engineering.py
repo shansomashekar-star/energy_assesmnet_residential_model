@@ -55,10 +55,14 @@ def test_feature_engineering():
         
         # Check for engineered features
         engineered_features = [
-            'HDD_x_SQFT', 'CDD_x_SQFT', 'SQFT_PER_CAPITA',
-            'HDD_x_SQFT_x_INSUL', 'CDD_x_SQFT_x_WINDOWS',
-            'AGE_x_EFFICIENCY', 'OCCUPANCY_x_BASELOAD',
-            'WINDOW_AREA_EST', 'HEATING_EFF_PROXY', 'COOLING_EFF_PROXY'
+                'HDD_x_SQFT',           # Heating intensity
+                'CDD_x_SQFT',           # Cooling intensity
+                'SQFT_PER_CAPITA',      # Sqft per household member
+                'HDD_x_SQFT_x_INSUL',   # Heating intensity adjusted by insulation
+                'CDD_x_SQFT_x_WINDOWS', # Cooling intensity adjusted by windows
+                'AGE_x_EFFICIENCY',     # Equipment age degradation proxy
+                'HEATING_EFF_PROXY',    # Heating system efficiency proxy
+                'COOLING_EFF_PROXY'     # Cooling system efficiency proxy
         ]
         
         missing = []
