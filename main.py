@@ -7,11 +7,18 @@ import pickle
 import pandas as pd
 import numpy as np
 import os
+import json
 from audit_engine import AuditEngine
 from report_generator import AuditReport
 from utility_rates import UtilityRates
+from fastapi import UploadFile, File
+import shutil
+
+UPLOAD_FOLDER = "uploaded_bills"
+os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
 app = FastAPI(title="Advanced Energy Audit API", version="2.1")
+BILL_DB = "data/bills.json"
 
 # Enable CORS for Lovable.app or local dev
 app.add_middleware(
@@ -44,6 +51,63 @@ def calculate_grade(percentile):
     if percentile > 40: return "C"
     if percentile > 20: return "D"
     return "F"
+
+def save_bill(data):
+    if not os.path.exists(BILL_DB):
+        with open(BILL_DB, "w") as f:
+            json.dump([], f)
+
+    with open(BILL_DB, "r") as f:
+        bills = json.load(f)
+
+    bills.append(data)
+
+    with open(BILL_DB, "w") as f:
+        json.dump(bills, f, indent=2)
+
+
+def extract_bill_data(file_path):
+    # Temporary mocked OCR output
+    return {
+        "electricity_kwh": 850,
+        "bill_amount_usd": 142.50,
+        "billing_period_start": "2026-02-01",
+        "billing_period_end": "2026-02-28",
+        "utility_provider": "PSE&G",
+        "meter_number": "12345678"
+    }
+
+def compare_with_previous(new_bill):
+    if not os.path.exists(BILL_DB):
+        return {"message": "No previous data"}
+
+    with open(BILL_DB, "r") as f:
+        bills = json.load(f)
+
+    if len(bills) == 0:
+        return {"message": "First bill entry"}
+
+    prev = bills[-1]
+
+    prev_kwh = prev.get("electricity_kwh", 0)
+    prev_cost = prev.get("bill_amount_usd", 0)
+
+    new_kwh = new_bill.get("electricity_kwh", 0)
+    new_cost = new_bill.get("bill_amount_usd", 0)
+
+    kwh_change = new_kwh - prev_kwh
+    cost_change = new_cost - prev_cost
+
+    percent_change_kwh = 0
+    if prev_kwh:
+        percent_change_kwh = (kwh_change / prev_kwh) * 100
+
+    return {
+        "previous_bill_found": True,
+        "kwh_change": kwh_change,
+        "cost_change": cost_change,
+        "percent_change_kwh": round(percent_change_kwh, 2)
+    }
 
 def calculate_co2(total_kbtu):
     total_kwh = total_kbtu * KBTU_TO_KWH
@@ -163,6 +227,26 @@ class HomeProfile(BaseModel):
     STORIES: Optional[int] = 1
     monthly_bill: Optional[float] = None  # For validation/calibration
     has_solar: Optional[int] = 0
+class ElectricityBillRequest(BaseModel):
+    electricity_kwh: float
+    bill_amount_usd: float
+    billing_period_start: str
+    billing_period_end: str
+    utility_provider: str
+    meter_number: Optional[str] = None
+
+@app.post("/upload-bill")
+async def upload_bill(file: UploadFile = File(...)):
+    file_path = os.path.join(UPLOAD_FOLDER, file.filename)
+
+    with open(file_path, "wb") as buffer:
+        shutil.copyfileobj(file.file, buffer)
+
+    return {
+        "status": "uploaded",
+        "filename": file.filename,
+        "path": file_path
+    }
 
 @app.on_event("startup")
 def load_models():
@@ -195,6 +279,34 @@ def load_models():
     except Exception as e:
         print(f"Error loading models: {e}")
 
+@app.post("/electricity-bill")
+def save_electricity_bill(data: ElectricityBillRequest):
+    return {
+        "status": "success",
+        "message": "Electricity bill received successfully",
+        "bill_data": data.dict()
+    }
+
+@app.post("/process-bill")
+async def process_bill(file: UploadFile = File(...)):
+    file_path = os.path.join(UPLOAD_FOLDER, file.filename)
+
+    with open(file_path, "wb") as buffer:
+        shutil.copyfileobj(file.file, buffer)
+
+    extracted_data = extract_bill_data(file_path)
+
+    comparison = compare_with_previous(extracted_data)
+
+    save_bill(extracted_data)
+
+    return {
+        "status": "processed",
+        "bill_data": extracted_data,
+        "comparison": comparison
+    }
+
+
 @app.post("/audit")
 def create_audit(profile: HomeProfile):
     if not MODELS:
@@ -205,61 +317,66 @@ def create_audit(profile: HomeProfile):
     df_input = pd.DataFrame([input_data])
     
     # --- Feature Engineering (must match train_advanced.py exactly) ---
-    # Basic interactions
+
+    # 1. Heating intensity
     if 'HDD65' in df_input.columns and 'TOTSQFT_EN' in df_input.columns:
         df_input['HDD_x_SQFT'] = df_input['HDD65'] * df_input['TOTSQFT_EN']
     else:
         df_input['HDD_x_SQFT'] = 0
-        
+
+    # 2. Cooling intensity
     if 'CDD65' in df_input.columns and 'TOTSQFT_EN' in df_input.columns:
         df_input['CDD_x_SQFT'] = df_input['CDD65'] * df_input['TOTSQFT_EN']
     else:
         df_input['CDD_x_SQFT'] = 0
 
+    # 3. Sqft per capita
     if 'TOTSQFT_EN' in df_input.columns and 'NHSLDMEM' in df_input.columns:
         members = df_input['NHSLDMEM'].replace(0, 1)
         df_input['SQFT_PER_CAPITA'] = df_input['TOTSQFT_EN'] / members
     else:
         df_input['SQFT_PER_CAPITA'] = 0
-    
-    # Advanced interaction features
+
+    # 4. Heating intensity adjusted by insulation
     if 'ADQINSUL' in df_input.columns:
-        insulation_factor = df_input['ADQINSUL'].astype(str).replace({'1': 1.0, '2': 0.7, '3': 0.4}).fillna(0.7)
+        insulation_factor = df_input['ADQINSUL'].astype(str).replace({
+            '1': 1.0,
+            '2': 0.7,
+            '3': 0.4
+        }).fillna(0.7)
     else:
         insulation_factor = pd.Series([0.7] * len(df_input))
     df_input['HDD_x_SQFT_x_INSUL'] = df_input['HDD65'] * df_input['TOTSQFT_EN'] * insulation_factor
-    
+
+    # 5. Cooling intensity adjusted by windows
     if 'WINDOWS' in df_input.columns:
         window_factor = pd.to_numeric(df_input['WINDOWS'], errors='coerce').fillna(3) / 5.0
     else:
         window_factor = pd.Series([0.6] * len(df_input))
     df_input['CDD_x_SQFT_x_WINDOWS'] = df_input['CDD65'] * df_input['TOTSQFT_EN'] * window_factor
-    
+
+    # 6. Equipment age degradation proxy
     if 'AGERFRI1' in df_input.columns:
         age_frig = pd.to_numeric(df_input['AGERFRI1'], errors='coerce').fillna(3)
     else:
         age_frig = pd.Series([3] * len(df_input))
+
     if 'ACEQUIPAGE' in df_input.columns:
         age_hvac = pd.to_numeric(df_input['ACEQUIPAGE'], errors='coerce').fillna(3)
     else:
         age_hvac = pd.Series([3] * len(df_input))
+
     df_input['AGE_x_EFFICIENCY'] = (age_frig + age_hvac) / 12.0
-    
-    df_input['OCCUPANCY_x_BASELOAD'] = df_input['NHSLDMEM'] * df_input['TOTSQFT_EN'] / 1000.0
-    
-    if 'WINDOWS' in df_input.columns:
-        window_count_proxy = pd.to_numeric(df_input['WINDOWS'], errors='coerce').fillna(3)
-    else:
-        window_count_proxy = pd.Series([3] * len(df_input))
-    df_input['WINDOW_AREA_EST'] = df_input['TOTSQFT_EN'] * (window_count_proxy / 5.0) * 0.15
-    
+
+    # 7. Heating efficiency proxy
     if 'EQUIPM' in df_input.columns:
         equip_type = pd.to_numeric(df_input['EQUIPM'], errors='coerce').fillna(3)
         heating_efficiency = equip_type.map({1: 0.3, 2: 0.6, 3: 0.7, 4: 0.65, 5: 0.8}).fillna(0.7)
     else:
         heating_efficiency = pd.Series([0.7] * len(df_input))
     df_input['HEATING_EFF_PROXY'] = heating_efficiency
-    
+
+    # 8. Cooling efficiency proxy
     if 'ACEQUIPM_PUB' in df_input.columns:
         cool_type = pd.to_numeric(df_input['ACEQUIPM_PUB'], errors='coerce').fillna(1)
         cooling_efficiency = cool_type.map({1: 0.6, 2: 0.5, 3: 0.7, 4: 0.8}).fillna(0.6)

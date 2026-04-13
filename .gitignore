@@ -7,3 +7,6 @@ data/
 # local
 .venv/
 pip_install.log
+
+venv311/
+uploaded_bills/
