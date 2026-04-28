@@ -13,6 +13,7 @@ from report_generator import AuditReport
 from utility_rates import UtilityRates
 from fastapi import UploadFile, File
 import shutil
+from forecasting import build_forecast
 
 UPLOAD_FOLDER = "uploaded_bills"
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
@@ -298,12 +299,29 @@ async def process_bill(file: UploadFile = File(...)):
 
     comparison = compare_with_previous(extracted_data)
 
-    save_bill(extracted_data)
+    with open(BILL_DB, "r") as f:
+        existing_bills = json.load(f) if os.path.getsize(BILL_DB) > 0 else []
+
+    is_duplicate = any(
+        bill.get("billing_period_start") == extracted_data.get("billing_period_start")
+        and bill.get("billing_period_end") == extracted_data.get("billing_period_end")
+        and bill.get("meter_number") == extracted_data.get("meter_number")
+        for bill in existing_bills
+    )
+
+    if not is_duplicate:
+        save_bill(extracted_data)
+
+    with open(BILL_DB, "r") as f:
+        all_bills = json.load(f)
+
+    forecast = build_forecast(all_bills)
 
     return {
-        "status": "processed",
+        "status": "processed_duplicate_not_saved" if is_duplicate else "processed",
         "bill_data": extracted_data,
-        "comparison": comparison
+        "comparison": comparison,
+        "forecast": forecast
     }
 
 
@@ -484,7 +502,16 @@ def create_audit(profile: HomeProfile):
     )
     
     # Return comprehensive report
-    return report_generator.generate_full_report()
+    forecast = None
+    if os.path.exists(BILL_DB):
+        with open(BILL_DB, "r") as f:
+            saved_bills = json.load(f) if os.path.getsize(BILL_DB) > 0 else []
+        forecast = build_forecast(saved_bills)
+
+    full_report = report_generator.generate_full_report()
+    full_report["future_energy_outlook"] = forecast
+
+    return full_report
 
 if __name__ == "__main__":
     import uvicorn
