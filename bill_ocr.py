@@ -5,6 +5,7 @@ from typing import Dict, Optional
 import pymupdf
 import pytesseract
 from PIL import Image
+from datetime import datetime
 
 
 def extract_text_from_pdf(file_path: str) -> str:
@@ -55,16 +56,19 @@ def extract_text_from_file(file_path: str) -> str:
 
 def find_first_money_amount(text: str) -> Optional[float]:
     patterns = [
-        r"total\s+amount\s+due[:\s$]*([0-9,]+\.\d{2})",
-        r"amount\s+due[:\s$]*([0-9,]+\.\d{2})",
-        r"total\s+due[:\s$]*([0-9,]+\.\d{2})",
-        r"current\s+charges[:\s$]*([0-9,]+\.\d{2})",
+        r"this\s+month[’'`s]*\s+charges\s+and\s+credits\s*\$?\s*([0-9,]+\.\d{2})",
+        r"current\s+charges\s*\$?\s*([0-9,]+\.\d{2})",
+        r"new\s+charges\s*\$?\s*([0-9,]+\.\d{2})",
+        r"electric\s+charges\s*\$?\s*([0-9,]+\.\d{2})",
+        r"total\s+amount\s+due(?:\s+by\s+[A-Za-z]+\s+\d{1,2},\s+\d{4})?\s*\$?\s*([0-9,]+\.\d{2})",
+        r"amount\s+due\s*\$?\s*([0-9,]+\.\d{2})",
+        r"total\s+due\s*\$?\s*([0-9,]+\.\d{2})",
     ]
 
-    lower_text = text.lower()
+    cleaned_text = text.replace("", "'").replace("’", "'")
 
     for pattern in patterns:
-        match = re.search(pattern, lower_text, re.IGNORECASE)
+        match = re.search(pattern, cleaned_text, re.IGNORECASE)
         if match:
             return float(match.group(1).replace(",", ""))
 
@@ -91,8 +95,43 @@ def find_kwh_usage(text: str) -> Optional[float]:
     return None
 
 
+def normalize_date(date_text: str) -> str:
+    date_text = date_text.strip()
+
+    formats = [
+        "%B %d, %Y",
+        "%b %d, %Y",
+        "%m/%d/%Y",
+        "%m/%d/%y",
+        "%Y-%m-%d",
+    ]
+
+    for fmt in formats:
+        try:
+            return datetime.strptime(date_text, fmt).strftime("%Y-%m-%d")
+        except ValueError:
+            continue
+
+    return date_text
+
+
 def find_dates(text: str):
+    period_pattern = (
+        r"for\s+the\s+period[:\s]+"
+        r"([A-Za-z]+\s+\d{1,2},\s+\d{4})"
+        r"\s+to\s+"
+        r"([A-Za-z]+\s+\d{1,2},\s+\d{4})"
+    )
+
+    period_match = re.search(period_pattern, text, re.IGNORECASE)
+    if period_match:
+        return [
+            normalize_date(period_match.group(1)),
+            normalize_date(period_match.group(2)),
+        ]
+
     date_patterns = [
+        r"\b[A-Za-z]+\s+\d{1,2},\s+\d{4}\b",
         r"\b\d{1,2}/\d{1,2}/\d{2,4}\b",
         r"\b\d{4}-\d{2}-\d{2}\b",
     ]
@@ -101,7 +140,7 @@ def find_dates(text: str):
     for pattern in date_patterns:
         dates.extend(re.findall(pattern, text))
 
-    return dates
+    return [normalize_date(d) for d in dates]
 
 
 def find_utility_provider(text: str) -> str:
