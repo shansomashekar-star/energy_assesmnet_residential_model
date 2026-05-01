@@ -14,6 +14,7 @@ from utility_rates import UtilityRates
 from fastapi import UploadFile, File
 import shutil
 from forecasting import build_forecast
+from bill_ocr import extract_bill_data_real
 
 UPLOAD_FOLDER = "uploaded_bills"
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
@@ -68,15 +69,7 @@ def save_bill(data):
 
 
 def extract_bill_data(file_path):
-    # Temporary mocked OCR output
-    return {
-        "electricity_kwh": 850,
-        "bill_amount_usd": 142.50,
-        "billing_period_start": "2026-02-01",
-        "billing_period_end": "2026-02-28",
-        "utility_provider": "PSE&G",
-        "meter_number": "12345678"
-    }
+    return extract_bill_data_real(file_path)
 
 def compare_with_previous(new_bill):
     if not os.path.exists(BILL_DB):
@@ -296,6 +289,12 @@ async def process_bill(file: UploadFile = File(...)):
         shutil.copyfileobj(file.file, buffer)
 
     extracted_data = extract_bill_data(file_path)
+    if not extracted_data.get("electricity_kwh") or not extracted_data.get("bill_amount_usd"):
+        return {
+            "status": "needs_manual_review",
+            "message": "OCR could not confidently extract all required bill fields.",
+            "bill_data": extracted_data
+        }
 
     comparison = compare_with_previous(extracted_data)
 
